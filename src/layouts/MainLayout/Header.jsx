@@ -54,9 +54,9 @@ export default function Header() {
   };
 
   // Khi bấm nút "Đăng xuất" màu đỏ trong Modal xác nhận
-  const handleConfirmLogout = () => {
+  const handleConfirmLogout = async () => {
     setIsLogoutModalOpen(false);
-    logout();
+    await logout();
     navigate('/login', { replace: true });
   };
 

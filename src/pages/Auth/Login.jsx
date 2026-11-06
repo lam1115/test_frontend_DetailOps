@@ -46,7 +46,7 @@ export default function Login() {
     await new Promise((resolve) => setTimeout(resolve, 600));
 
     try {
-      const loggedInUser = login(formData.email, formData.password);
+      const loggedInUser = await login(formData.email, formData.password);
       navigate(loggedInUser.role === 'ADMIN' ? '/dashboard' : '/pos', {
         replace: true,
       });

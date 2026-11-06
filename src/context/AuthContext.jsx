@@ -1,4 +1,9 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import axiosClient, {
+  USE_MOCK,
+  setClientToken,
+  setupAxiosAuth,
+} from '../api/axiosClient';
 import { useToast } from '../components/common';
 
 // 1. Tạo Context lưu trữ thông tin xác thực
@@ -29,36 +34,89 @@ export function AuthProvider({ children }) {
   // Danh sách tài khoản tạm thời trong bộ nhớ
   const [usersList, setUsersList] = useState(INITIAL_USERS);
 
-  // Mặc định user = null để bắt đầu từ màn hình /login (hoặc lưu phiên hiện tại)
+  // Lưu thông tin người dùng và Access Token hoàn toàn trong RAM (React State)
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
 
-  // Hàm đăng nhập: kiểm tra email & password trong usersList
-  const login = (email, password) => {
-    const normalizedEmail = (email || '').trim().toLowerCase();
-    const foundUser = usersList.find(
-      (u) => u.email.toLowerCase() === normalizedEmail && u.password === password
-    );
+  // Hàm đăng xuất: xóa sạch user, xóa token trong Context + axiosClient và thông báo Toast
+  const logout = useCallback(
+    async (isSessionExpired = false) => {
+      if (!USE_MOCK) {
+        try {
+          await axiosClient.post('/auth/logout');
+        } catch {
+          // Bỏ qua lỗi mạng khi gọi logout để luôn dọn sạch trạng thái ở Client
+        }
+      }
 
-    if (!foundUser) {
-      throw new Error('Thông tin đăng nhập không hợp lệ');
+      setAccessToken(null);
+      setClientToken(null);
+      setUser(null);
+
+      if (isSessionExpired === true) {
+        toast.error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
+      } else {
+        toast.info('Đã đăng xuất khỏi hệ thống');
+      }
+    },
+    [toast]
+  );
+
+  // Kết nối callback đồng bộ với axiosClient khi ứng dụng Mount
+  useEffect(() => {
+    setupAxiosAuth({
+      onTokenRefreshed: (newToken) => setAccessToken(newToken),
+      onAuthFailed: () => logout(true),
+    });
+  }, [logout]);
+
+  // Hàm đăng nhập: kiểm tra tài khoản, lưu user + accessToken và đồng bộ setClientToken(token)
+  const login = async (email, password) => {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+
+    if (USE_MOCK) {
+      const foundUser = usersList.find(
+        (u) =>
+          u.email.toLowerCase() === normalizedEmail && u.password === password
+      );
+
+      if (!foundUser) {
+        throw new Error('Thông tin đăng nhập không hợp lệ');
+      }
+
+      const sessionUser = {
+        id: foundUser.id,
+        name: foundUser.name,
+        email: foundUser.email,
+        role: foundUser.role,
+      };
+
+      const token = `mock-access-token-${foundUser.role.toLowerCase()}-${Date.now()}`;
+
+      // Đồng bộ token vào Context state và biến inMemoryToken của axiosClient
+      setAccessToken(token);
+      setClientToken(token);
+      setUser(sessionUser);
+
+      toast.success(`Đăng nhập thành công! Xin chào ${sessionUser.name}`);
+      return sessionUser;
     }
 
-    const sessionUser = {
-      id: foundUser.id,
-      name: foundUser.name,
-      email: foundUser.email,
-      role: foundUser.role,
-    };
+    // Khi USE_MOCK = false -> Gọi API POST /auth/login thật lên Backend
+    const response = await axiosClient.post('/auth/login', {
+      email: normalizedEmail,
+      password,
+    });
+    const token =
+      response?.data?.accessToken || response?.data?.access_token;
+    const loggedInUser = response?.data?.user;
 
-    // Tạo giả một accessToken lưu trong bộ nhớ
-    const mockToken = `rops_token_${foundUser.role.toLowerCase()}_${Date.now()}`;
+    setAccessToken(token);
+    setClientToken(token);
+    setUser(loggedInUser);
 
-    setUser(sessionUser);
-    setAccessToken(mockToken);
-    toast.success(`Đăng nhập thành công! Xin chào ${sessionUser.name}`);
-
-    return sessionUser;
+    toast.success(`Đăng nhập thành công! Xin chào ${loggedInUser?.name || ''}`);
+    return loggedInUser;
   };
 
   // Hàm đăng ký tài khoản mới từ Register.jsx -> đẩy vào usersList với role: 'STAFF'
@@ -74,7 +132,6 @@ export function AuthProvider({ children }) {
     };
 
     setUsersList((prev) => {
-      // Nếu email đã tồn tại thì cập nhật, chưa có thì thêm mới
       const exists = prev.some((u) => u.email.toLowerCase() === normalizedEmail);
       if (exists) {
         return prev.map((u) =>
@@ -85,13 +142,6 @@ export function AuthProvider({ children }) {
     });
 
     return newUser;
-  };
-
-  // Hàm đăng xuất: xóa user, xóa token và thông báo Toast
-  const logout = () => {
-    setUser(null);
-    setAccessToken(null);
-    toast.info('Đã đăng xuất khỏi hệ thống');
   };
 
   return (

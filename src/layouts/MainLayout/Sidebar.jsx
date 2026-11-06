@@ -145,9 +145,9 @@ export default function Sidebar() {
   );
 
   // Xác nhận đăng xuất thực sự khi bấm nút "Đăng xuất" màu đỏ trong Modal
-  const handleConfirmLogout = () => {
+  const handleConfirmLogout = async () => {
     setIsLogoutModalOpen(false);
-    logout();
+    await logout();
     navigate('/login', { replace: true });
   };
 
