@@ -1,49 +1,110 @@
 import { createContext, useContext, useState } from 'react';
+import { useToast } from '../components/common';
 
 // 1. Tạo Context lưu trữ thông tin xác thực
 const AuthContext = createContext(null);
 
-// Dữ liệu mẫu cho 2 vai trò để dễ dàng chuyển đổi và kiểm thử giao diện
-const MOCK_USERS = {
-  ADMIN: {
+// 2 Tài khoản mẫu cố định (Seed Accounts) của hệ thống RetailOps v1.0
+const INITIAL_USERS = [
+  {
     id: 'usr_admin_01',
     name: 'Nguyễn Minh Hiếu',
-    email: 'admin@retailops.vn',
+    email: 'minhhieu19692016@gmail.com',
+    password: 'admin123',
     role: 'ADMIN',
   },
-  STAFF: {
+  {
     id: 'usr_staff_01',
     name: 'Cao Nguyễn Anh Dương',
     email: 'caoanhnguyenduong@gmail.com',
+    password: 'staff123',
     role: 'STAFF',
   },
-};
+];
 
 // 2. Tạo Provider bọc ngoài ứng dụng
 export function AuthProvider({ children }) {
-  // Mặc định đăng nhập sẵn với quyền ADMIN để xem toàn bộ 10 mục menu
-  const [user, setUser] = useState(MOCK_USERS.ADMIN);
+  const toast = useToast();
 
-  // Hàm đăng nhập theo vai trò ('ADMIN' hoặc 'STAFF')
-  const login = (role = 'ADMIN') => {
-    setUser(MOCK_USERS[role] || MOCK_USERS.ADMIN);
+  // Danh sách tài khoản tạm thời trong bộ nhớ
+  const [usersList, setUsersList] = useState(INITIAL_USERS);
+
+  // Mặc định user = null để bắt đầu từ màn hình /login (hoặc lưu phiên hiện tại)
+  const [user, setUser] = useState(null);
+  const [accessToken, setAccessToken] = useState(null);
+
+  // Hàm đăng nhập: kiểm tra email & password trong usersList
+  const login = (email, password) => {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const foundUser = usersList.find(
+      (u) => u.email.toLowerCase() === normalizedEmail && u.password === password
+    );
+
+    if (!foundUser) {
+      throw new Error('Thông tin đăng nhập không hợp lệ');
+    }
+
+    const sessionUser = {
+      id: foundUser.id,
+      name: foundUser.name,
+      email: foundUser.email,
+      role: foundUser.role,
+    };
+
+    // Tạo giả một accessToken lưu trong bộ nhớ
+    const mockToken = `rops_token_${foundUser.role.toLowerCase()}_${Date.now()}`;
+
+    setUser(sessionUser);
+    setAccessToken(mockToken);
+    toast.success(`Đăng nhập thành công! Xin chào ${sessionUser.name}`);
+
+    return sessionUser;
   };
 
-  // Hàm đăng xuất nhanh (xóa thông tin user)
+  // Hàm đăng ký tài khoản mới từ Register.jsx -> đẩy vào usersList với role: 'STAFF'
+  const register = (userData) => {
+    const normalizedEmail = (userData.email || '').trim().toLowerCase();
+
+    const newUser = {
+      id: `usr_staff_${Date.now()}`,
+      name: (userData.fullName || 'Nhân viên mới').trim(),
+      email: normalizedEmail,
+      password: userData.password,
+      role: 'STAFF',
+    };
+
+    setUsersList((prev) => {
+      // Nếu email đã tồn tại thì cập nhật, chưa có thì thêm mới
+      const exists = prev.some((u) => u.email.toLowerCase() === normalizedEmail);
+      if (exists) {
+        return prev.map((u) =>
+          u.email.toLowerCase() === normalizedEmail ? newUser : u
+        );
+      }
+      return [...prev, newUser];
+    });
+
+    return newUser;
+  };
+
+  // Hàm đăng xuất: xóa user, xóa token và thông báo Toast
   const logout = () => {
     setUser(null);
-  };
-
-  // Hàm chuyển đổi nhanh giữa ADMIN <-> STAFF trên thanh Header để test phân quyền
-  const toggleRole = () => {
-    setUser((prevUser) => {
-      if (!prevUser) return MOCK_USERS.ADMIN;
-      return prevUser.role === 'ADMIN' ? MOCK_USERS.STAFF : MOCK_USERS.ADMIN;
-    });
+    setAccessToken(null);
+    toast.info('Đã đăng xuất khỏi hệ thống');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, toggleRole }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        accessToken,
+        usersList,
+        login,
+        register,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -57,4 +118,3 @@ export function useAuth() {
   }
   return context;
 }
-

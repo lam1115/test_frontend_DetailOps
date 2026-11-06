@@ -262,26 +262,6 @@
   gap: 10px;
 }
 
-/* Nút chuyển đổi nhanh quyền ADMIN <-> STAFF để test */
-.roleSwitchBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px dashed var(--color-primary);
-  background-color: var(--color-tertiary);
-  color: var(--color-primary);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-
-.roleSwitchBtn:hover {
-  opacity: 0.85;
-}
-
 /* Nút tiện ích (?) và Chuông thông báo (🔔) */
 .iconBtn {
   position: relative;

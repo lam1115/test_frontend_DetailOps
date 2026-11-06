@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Modal, useToast } from '../../components/common';
+import { Modal } from '../../components/common';
 import modalStyles from '../../components/common/Modal/Modal.module.css';
 import styles from './MainLayout.module.css';
 
@@ -132,7 +132,7 @@ export const MENU_ITEMS = [
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
-  const toast = useToast();
+  const navigate = useNavigate();
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   if (!user) return null;
@@ -148,7 +148,7 @@ export default function Sidebar() {
   const handleConfirmLogout = () => {
     setIsLogoutModalOpen(false);
     logout();
-    toast.info('Đã đăng xuất khỏi hệ thống');
+    navigate('/login', { replace: true });
   };
 
   return (

@@ -1,7 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { ToastProvider, useToast } from './components/common';
+import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './components/common';
+import AuthLayout from './layouts/AuthLayout/AuthLayout';
 import MainLayout from './layouts/MainLayout/MainLayout';
+import Login from './pages/Auth/Login';
+import Register from './pages/Auth/Register';
 import ProtectedRoute from './routes/ProtectedRoute';
 import ProductListDemo from './pages/Products/ProductListDemo';
 import styles from './layouts/MainLayout/MainLayout.module.css';
@@ -19,86 +22,19 @@ function MockPage({ title, description, allowedRolesText }) {
   );
 }
 
-// Trang đăng nhập nhanh khi bấm nút "Đăng xuất" ở đáy Sidebar
-function QuickLoginPage() {
-  const { user, login } = useAuth();
-  const toast = useToast();
-
-  if (user) {
-    return <Navigate to={user.role === 'ADMIN' ? '/dashboard' : '/pos'} replace />;
-  }
-
-  const handleLogin = (role) => {
-    login(role);
-    const displayName =
-      role === 'ADMIN' ? 'Nguyễn Minh Hiếu' : 'Cao Nguyễn Anh Dương';
-    toast.success(`Đăng nhập thành công! Xin chào ${displayName}`);
-  };
-
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-      }}
-    >
-      <div className={styles.demoCard} style={{ maxWidth: '420px', width: '100%', textAlign: 'center' }}>
-        <h2 className={styles.demoTitle} style={{ marginBottom: '8px' }}>
-          Đăng nhập RetailOps v1.0
-        </h2>
-        <p className={styles.demoDesc} style={{ marginBottom: '20px' }}>
-          Chọn một vai trò bên dưới để kiểm thử giao diện phân quyền của Sidebar:
-        </p>
-        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-          <button
-            type="button"
-            onClick={() => handleLogin('ADMIN')}
-            style={{
-              padding: '10px 18px',
-              borderRadius: '8px',
-              border: 'none',
-              backgroundColor: 'var(--color-primary)',
-              color: '#FFFFFF',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Đăng nhập ADMIN
-          </button>
-          <button
-            type="button"
-            onClick={() => handleLogin('STAFF')}
-            style={{
-              padding: '10px 18px',
-              borderRadius: '8px',
-              border: '1px solid var(--color-border)',
-              backgroundColor: '#FFFFFF',
-              color: 'var(--color-neutral)',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Đăng nhập STAFF
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <ToastProvider>
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Route đăng nhập giả lập để kiểm thử nút Đăng xuất */}
-            <Route path="/login" element={<QuickLoginPage />} />
+            {/* 1. Nhóm Route Xác thực (/login và /register) bọc trong <AuthLayout /> */}
+            <Route element={<AuthLayout />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+            </Route>
 
-            {/* Nhóm các Route sử dụng chung MainLayout (Sidebar + Header + Outlet) */}
+            {/* 2. Nhóm Route Không gian làm việc sử dụng chung <MainLayout /> */}
             <Route
               path="/"
               element={
@@ -138,7 +74,7 @@ export default function App() {
                 }
               />
 
-              {/* 3. Sản phẩm (/products) - Cả ['ADMIN', 'STAFF'] -> Hiển thị ví dụ thực tế Table + Pagination + Toast */}
+              {/* 3. Sản phẩm (/products) - Cả ['ADMIN', 'STAFF'] */}
               <Route
                 path="products"
                 element={

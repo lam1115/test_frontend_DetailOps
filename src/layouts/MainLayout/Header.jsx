@@ -7,7 +7,7 @@ import { MENU_ITEMS } from './Sidebar';
 import styles from './MainLayout.module.css';
 
 export default function Header() {
-  const { user, toggleRole, logout } = useAuth();
+  const { user, logout } = useAuth();
   const toast = useToast();
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,24 +47,6 @@ export default function Header() {
   const roleLabel = isAdmin ? 'Quản trị viên' : 'Nhân viên';
   const avatarInitials = isAdmin ? 'A' : 'NV';
 
-  // Xử lý chuyển đổi nhanh quyền ADMIN <-> STAFF để test giao diện
-  const handleSwitchRole = () => {
-    const nextRole = isAdmin ? 'STAFF' : 'ADMIN';
-    toggleRole();
-    setIsDropdownOpen(false);
-
-    if (nextRole === 'STAFF') {
-      toast.info('Đã chuyển sang vai trò Nhân viên (STAFF)');
-    } else {
-      toast.info('Đã chuyển sang vai trò Quản trị viên (ADMIN)');
-    }
-
-    // Nếu chuyển sang STAFF khi đang ở trang chỉ dành cho ADMIN, tự động đưa về /pos
-    if (nextRole === 'STAFF' && currentMenu && !currentMenu.roles.includes('STAFF')) {
-      navigate('/pos');
-    }
-  };
-
   // Khi bấm vào hàng "Đăng xuất" trong Dropdown -> Đóng Dropdown và mở Modal xác nhận
   const handleOpenLogoutModal = () => {
     setIsDropdownOpen(false);
@@ -75,7 +57,7 @@ export default function Header() {
   const handleConfirmLogout = () => {
     setIsLogoutModalOpen(false);
     logout();
-    toast.info('Đã đăng xuất khỏi hệ thống');
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -88,24 +70,8 @@ export default function Header() {
           <span className={styles.breadcrumbCurrent}>{currentPageLabel}</span>
         </div>
 
-        {/* Bên phải Header: Nút đổi quyền, Trợ giúp (?), Chuông thông báo, Cụm User Dropdown */}
+        {/* Bên phải Header: Trợ giúp (?), Chuông thông báo, Cụm User Dropdown */}
         <div className={styles.headerActions}>
-          {/* Nút chuyển đổi nhanh quyền ADMIN <-> STAFF phục vụ test giao diện */}
-          <button
-            type="button"
-            onClick={handleSwitchRole}
-            className={styles.roleSwitchBtn}
-            title="Bấm để chuyển đổi nhanh giữa quyền ADMIN và STAFF"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="17 1 21 5 17 9" />
-              <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-              <polyline points="7 23 3 19 7 15" />
-              <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-            </svg>
-            <span>Đang xem: {user?.role} (Đổi quyền)</span>
-          </button>
-
           {/* Nút icon Trợ giúp (?) */}
           <button
             type="button"
