@@ -30,9 +30,8 @@ function ActiveStatusBadge({ activeStatus }) {
   const isSelling = activeStatus !== 'INACTIVE';
   return (
     <span
-      className={`${styles.pillBadge} ${
-        isSelling ? styles.badgeSuccess : styles.badgeNeutral
-      }`}
+      className={`${styles.pillBadge} ${isSelling ? styles.badgeSuccess : styles.badgeNeutral
+        }`}
     >
       {isSelling ? 'Đang bán' : 'Ngừng bán'}
     </span>
@@ -42,8 +41,8 @@ function ActiveStatusBadge({ activeStatus }) {
 /**
  * Trang Danh sách Sản phẩm chính thức (Khung chuẩn bàn giao cho Tân tích hợp API)
  * - Phân quyền hiển thị theo vai trò:
- *   + ADMIN: Xem đầy đủ nút "Sửa" (icon bút chì), nút "Xóa" (icon thùng rác) và nút "+ Thêm sản phẩm".
- *   + STAFF: Ẩn nút "Sửa" sản phẩm và nút "+ Thêm sản phẩm".
+ *   + ADMIN: Xem đầy đủ cột "Giá vốn", nút "Sửa" (icon bút chì), nút "Xóa" (icon thùng rác) và nút "+ Thêm sản phẩm".
+ *   + STAFF: Ẩn hoàn toàn cột "Giá vốn" và ẩn nút "Sửa" sản phẩm.
  */
 export default function ProductList() {
   const { user } = useAuth();
@@ -147,7 +146,7 @@ export default function ProductList() {
     }
   };
 
-  // 2. Cấu hình cột bảng sản phẩm (Ẩn nút "Sửa" nếu user.role === 'STAFF')
+  // 2. Cấu hình cột động theo vai trò (Ẩn cột "Giá vốn" và nút "Sửa" nếu user.role === 'STAFF')
   const columns = useMemo(() => {
     const baseColumns = [
       {
@@ -165,6 +164,22 @@ export default function ProductList() {
         key: 'category',
         title: 'DANH MỤC',
       },
+      // Cột GIÁ VỐN: Chỉ hiển thị khi KHÔNG phải là STAFF (tức là ADMIN)
+      ...(!isStaff
+        ? [
+          {
+            key: 'costPrice',
+            title: 'GIÁ VỐN (VND)',
+            align: 'right',
+            width: '140px',
+            render: (row) => (
+              <span className={styles.costPriceText}>
+                {formatVND(row.costPrice)}
+              </span>
+            ),
+          },
+        ]
+        : []),
       {
         key: 'price',
         title: 'GIÁ BÁN (VND)',
@@ -375,4 +390,3 @@ export default function ProductList() {
     </div>
   );
 }
-

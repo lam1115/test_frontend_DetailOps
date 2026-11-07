@@ -2,6 +2,14 @@ import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/common';
+import {
+  evaluatePasswordCriteria,
+  validateConfirmPassword,
+  validateEmail,
+  validateFullName,
+  validateRegisterForm,
+  validateRegisterPassword,
+} from '../../utils/validation';
 import styles from './Register.module.css';
 
 export default function Register() {
@@ -15,11 +23,23 @@ export default function Register() {
     password: '',
     confirmPassword: '',
   });
+  const [fieldErrors, setFieldErrors] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [touched, setTouched] = useState({
+    fullName: false,
+    email: false,
+    password: false,
+    confirmPassword: false,
+  });
 
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Nếu đã đăng nhập sẵn thì điều hướng vào không gian làm việc
+  // Nếu đã đăng nhập sẵn (APPROVED) thì điều hướng vào không gian làm việc
   if (user) {
     return (
       <Navigate
@@ -29,32 +49,94 @@ export default function Register() {
     );
   }
 
+  // Đánh giá trực quan các tiêu chí mật khẩu
+  const criteria = evaluatePasswordCriteria(
+    formData.password,
+    formData.confirmPassword
+  );
+
+  // Kiểm tra lỗi từng trường
+  const validateSingleField = (name, value, nextState = formData) => {
+    if (name === 'fullName') return validateFullName(value);
+    if (name === 'email') return validateEmail(value);
+    if (name === 'password') return validateRegisterPassword(value);
+    if (name === 'confirmPassword') {
+      return validateConfirmPassword(nextState.password, value);
+    }
+    return '';
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (errorMsg) setErrorMsg('');
-    setFormData((prev) => ({
-      ...prev,
+
+    const nextFormData = {
+      ...formData,
       [name]: value,
+    };
+    setFormData(nextFormData);
+
+    // Cập nhật lỗi trực tiếp cho trường đã được chạm (touched)
+    setFieldErrors((prev) => {
+      const updated = { ...prev };
+      if (touched[name]) {
+        updated[name] = validateSingleField(name, value, nextFormData);
+      }
+      // Nếu sửa password mà confirmPassword đã chạm thì kiểm tra lại độ khớp
+      if (name === 'password' && touched.confirmPassword) {
+        updated.confirmPassword = validateConfirmPassword(
+          value,
+          nextFormData.confirmPassword
+        );
+      }
+      return updated;
+    });
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    setTouched((prev) => ({
+      ...prev,
+      [name]: true,
+    }));
+    setFieldErrors((prev) => ({
+      ...prev,
+      [name]: validateSingleField(name, value, formData),
     }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setErrorMsg('');
 
-    if (!formData.fullName.trim() || !formData.email.trim() || !formData.password) {
-      setErrorMsg('Vui lòng điền đầy đủ họ tên, email và mật khẩu.');
+    const { isValid, errors } = validateRegisterForm(formData);
+    setTouched({
+      fullName: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+    });
+    setFieldErrors(errors);
+
+    if (!isValid) {
+      setErrorMsg('Vui lòng kiểm tra và hoàn thiện đúng các thông tin bắt buộc.');
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setErrorMsg('Mật khẩu xác nhận không khớp. Vui lòng kiểm tra lại.');
-      return;
-    }
+    // Lưu tài khoản mới vào AuthContext với role: 'STAFF' và status: 'PENDING'
+    const newAccount = register(formData);
+    toast.success('Gửi yêu cầu đăng ký thành công! Hồ sơ đang chờ phê duyệt.');
 
-    // Lưu tài khoản mới vào usersList trong AuthContext với role: 'STAFF'
-    register(formData);
-    toast.success('Đăng ký thành công! Vui lòng đăng nhập.');
-    navigate('/login');
+    // Tự động điều hướng sang /account-status ở trạng thái PENDING kèm thông tin hồ sơ
+    navigate('/account-status', {
+      replace: true,
+      state: {
+        status: 'PENDING',
+        fullName: newAccount.name,
+        email: newAccount.email,
+        submittedAt: newAccount.submittedAt,
+      },
+    });
   };
 
   return (
@@ -72,7 +154,7 @@ export default function Register() {
           <h3 className={styles.infoTitle}>Quy trình cấp tài khoản hai bước</h3>
           <p className={styles.infoDesc}>
             Sau khi gửi yêu cầu, hồ sơ sẽ được khởi tạo với vai trò{' '}
-            <strong>Nhân viên (STAFF)</strong> để phục vụ đăng nhập vào quầy POS.
+            <strong>Nhân viên (STAFF)</strong> và chờ Quản trị viên phê duyệt trước khi đăng nhập quầy POS.
           </p>
         </div>
       </div>
@@ -91,7 +173,7 @@ export default function Register() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <form onSubmit={handleSubmit} className={styles.form} noValidate>
         {/* Họ và tên */}
         <div className={styles.fieldGroup}>
           <label htmlFor="fullName" className={styles.label}>
@@ -113,14 +195,24 @@ export default function Register() {
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="Nguyễn Văn An"
-              className={styles.input}
+              className={`${styles.input} ${
+                fieldErrors.fullName ? styles.inputError : ''
+              }`}
+              aria-invalid={Boolean(fieldErrors.fullName)}
               required
             />
           </div>
-          <span className={styles.helperText}>
-            Tên sẽ hiển thị trên đơn hàng POS và nhật ký giao dịch.
-          </span>
+          {fieldErrors.fullName ? (
+            <span className={styles.fieldError} role="alert">
+              {fieldErrors.fullName}
+            </span>
+          ) : (
+            <span className={styles.helperText}>
+              Tên sẽ hiển thị trên đơn hàng POS và nhật ký giao dịch.
+            </span>
+          )}
         </div>
 
         {/* Email đăng nhập */}
@@ -141,14 +233,24 @@ export default function Register() {
               name="email"
               value={formData.email}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="an.nguyen@retailops.vn"
-              className={styles.input}
+              className={`${styles.input} ${
+                fieldErrors.email ? styles.inputError : ''
+              }`}
+              aria-invalid={Boolean(fieldErrors.email)}
               required
             />
           </div>
-          <span className={styles.helperText}>
-            Chuẩn hóa chữ thường. Email này không được trùng lặp trong hệ thống.
-          </span>
+          {fieldErrors.email ? (
+            <span className={styles.fieldError} role="alert">
+              {fieldErrors.email}
+            </span>
+          ) : (
+            <span className={styles.helperText}>
+              Chuẩn hóa chữ thường. Email này không được trùng lặp trong hệ thống.
+            </span>
+          )}
         </div>
 
         {/* Mật khẩu */}
@@ -169,8 +271,12 @@ export default function Register() {
               name="password"
               value={formData.password}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="••••••••••••••••"
-              className={`${styles.input} ${styles.inputWithRightIcon}`}
+              className={`${styles.input} ${styles.inputWithRightIcon} ${
+                fieldErrors.password ? styles.inputError : ''
+              }`}
+              aria-invalid={Boolean(fieldErrors.password)}
               required
             />
             <button
@@ -185,6 +291,11 @@ export default function Register() {
               </svg>
             </button>
           </div>
+          {fieldErrors.password && (
+            <span className={styles.fieldError} role="alert">
+              {fieldErrors.password}
+            </span>
+          )}
         </div>
 
         {/* Xác nhận mật khẩu */}
@@ -207,40 +318,65 @@ export default function Register() {
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="••••••••••••••••"
-              className={styles.input}
+              className={`${styles.input} ${
+                fieldErrors.confirmPassword ? styles.inputError : ''
+              }`}
+              aria-invalid={Boolean(fieldErrors.confirmPassword)}
               required
             />
           </div>
+          {fieldErrors.confirmPassword && (
+            <span className={styles.fieldError} role="alert">
+              {fieldErrors.confirmPassword}
+            </span>
+          )}
         </div>
 
         {/* Khung tiêu chí bảo mật mật khẩu */}
         <div className={styles.criteriaBox}>
           <p className={styles.criteriaTitle}>Tiêu chí bảo mật mật khẩu:</p>
           <div className={styles.criteriaGrid}>
-            <div className={styles.criteriaItem}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087F5B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div
+              className={`${styles.criteriaItem} ${
+                criteria.minLength ? styles.criteriaPassed : ''
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
               <span>Tối thiểu 8 ký tự</span>
             </div>
-            <div className={styles.criteriaItem}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087F5B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div
+              className={`${styles.criteriaItem} ${
+                criteria.hasLetter ? styles.criteriaPassed : ''
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
-              <span>Có chữ hoa &amp; thường</span>
+              <span>Ít nhất 1 chữ cái</span>
             </div>
-            <div className={styles.criteriaItem}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087F5B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div
+              className={`${styles.criteriaItem} ${
+                criteria.hasNumber ? styles.criteriaPassed : ''
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
               <span>Ít nhất 1 chữ số</span>
             </div>
-            <div className={styles.criteriaItem}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087F5B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div
+              className={`${styles.criteriaItem} ${
+                criteria.isConfirmed ? styles.criteriaPassed : ''
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>

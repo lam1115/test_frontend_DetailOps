@@ -123,6 +123,16 @@
   box-shadow: 0 0 0 3px rgba(8, 127, 91, 0.12);
 }
 
+.inputError {
+  border-color: var(--color-danger, #B91C1C);
+  background-color: #FFFBFB;
+}
+
+.inputError:focus {
+  border-color: var(--color-danger, #B91C1C);
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.12);
+}
+
 .eyeBtn {
   position: absolute;
   right: 10px;
@@ -142,6 +152,12 @@
 .helperText {
   font-size: 11.5px;
   color: var(--color-secondary, #586574);
+}
+
+.fieldError {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--color-danger, #B91C1C);
 }
 
 /* Khung tiêu chí mật khẩu */
@@ -170,7 +186,13 @@
   align-items: center;
   gap: 6px;
   font-size: 11.5px;
-  color: var(--color-neutral, #242A30);
+  color: var(--color-secondary, #586574);
+  transition: color 0.15s ease;
+}
+
+.criteriaPassed {
+  color: var(--color-primary, #087F5B);
+  font-weight: 600;
 }
 
 /* Ghi chú bảo mật */
@@ -203,11 +225,16 @@
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color 0.15s, opacity 0.15s;
 }
 
-.submitBtn:hover {
+.submitBtn:hover:not(:disabled) {
   background-color: #066649;
+}
+
+.submitBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 /* Footer bên trong Card */

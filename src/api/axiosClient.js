@@ -4,7 +4,8 @@ import axios from 'axios';
  * ============================================================================
  * CẤU HÌNH TRUNG TÂM MẠNG & BẢO MẬT PHIÊN (RetailOps v1.0)
  * ============================================================================
- * - USE_MOCK = true: Giả lập làm mới token bằng setTimeout(600ms) khi chưa có Backend.
+ * - USE_MOCK = true: Giả lập làm mới token (/auth/refresh) bằng setTimeout(600ms)
+ *   khi chưa có endpoint refresh thật từ Backend.
  * - USE_MOCK = false: Gọi trực tiếp endpoint thật `${BASE_URL}/auth/refresh`.
  */
 export const USE_MOCK = true;
@@ -82,7 +83,7 @@ function callRefreshTokenApi() {
 }
 
 // ============================================================================
-// 5. REQUEST INTERCEPTOR: ĐÍNH KÈM BEARER TOKEN VÀO HEADER AUTHORIZATION
+// 5. REQUEST INTERCEPTOR: TỰ ĐỘNG ĐÍNH KÈM BEARER TOKEN VÀO HEADER
 // ============================================================================
 axiosClient.interceptors.request.use(
   (config) => {

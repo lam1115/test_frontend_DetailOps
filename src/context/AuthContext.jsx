@@ -17,6 +17,7 @@ const INITIAL_USERS = [
     email: 'minhhieu19692016@gmail.com',
     password: 'admin123',
     role: 'ADMIN',
+    status: 'APPROVED',
   },
   {
     id: 'usr_staff_01',
@@ -24,6 +25,40 @@ const INITIAL_USERS = [
     email: 'caoanhnguyenduong@gmail.com',
     password: 'staff123',
     role: 'STAFF',
+    status: 'APPROVED',
+  },
+  {
+    id: 'usr_staff_pending',
+    name: 'Nguyễn Văn An',
+    email: 'staff.pending@retailops.vn',
+    password: 'staff123',
+    role: 'STAFF',
+    status: 'PENDING',
+    submittedAt: '09:30 - 07/11/2026 (Asia/Ha_Noi)',
+  },
+  {
+    id: 'usr_staff_rejected_locked',
+    name: 'Trần Thị Bình',
+    email: 'staff.rejected@retailops.vn',
+    password: 'staff123',
+    role: 'STAFF',
+    status: 'REJECTED',
+    rejectSubState: 'LOCKED_24H',
+    submittedAt: '15:20 - 07/11/2026 (Asia/Ha_Noi)',
+    rejectReason:
+      'Email đăng ký chưa nằm trong danh sách phân ca nhân sự tháng 11/2026 tại cửa hàng. Vui lòng xác nhận lại với Cửa hàng trưởng trước khi gửi lại yêu cầu.',
+  },
+  {
+    id: 'usr_staff_rejected_eligible',
+    name: 'Lê Hoàng Nam',
+    email: 'staff.reapply@retailops.vn',
+    password: 'staff123',
+    role: 'STAFF',
+    status: 'REJECTED',
+    rejectSubState: 'ELIGIBLE',
+    submittedAt: '08:00 - 06/11/2026 (Asia/Ha_Noi)',
+    rejectReason:
+      'Thông tin ca trực đăng ký trước đó chưa khớp lịch phân công. Thời gian chờ 24 giờ đã hoàn tất, bạn có thể xác minh và gửi lại yêu cầu xét duyệt.',
   },
 ];
 
@@ -70,7 +105,7 @@ export function AuthProvider({ children }) {
     });
   }, [logout]);
 
-  // Hàm đăng nhập: kiểm tra tài khoản, lưu user + accessToken và đồng bộ setClientToken(token)
+  // Hàm đăng nhập: kiểm tra tài khoản, kiểm tra trạng thái hồ sơ (PENDING/REJECTED/APPROVED)
   const login = async (email, password) => {
     const normalizedEmail = (email || '').trim().toLowerCase();
 
@@ -84,11 +119,29 @@ export function AuthProvider({ children }) {
         throw new Error('Thông tin đăng nhập không hợp lệ');
       }
 
+      const accountStatus = foundUser.status || 'APPROVED';
+
+      // Nếu tài khoản đang chờ duyệt (PENDING) hoặc bị từ chối (REJECTED):
+      // Không cấp Access Token vào phiên, trả về thông tin hồ sơ để Login.jsx điều hướng sang /account-status
+      if (accountStatus === 'PENDING' || accountStatus === 'REJECTED') {
+        return {
+          id: foundUser.id,
+          name: foundUser.name,
+          email: foundUser.email,
+          role: foundUser.role,
+          status: accountStatus,
+          submittedAt: foundUser.submittedAt,
+          rejectReason: foundUser.rejectReason,
+          rejectSubState: foundUser.rejectSubState || 'LOCKED_24H',
+        };
+      }
+
       const sessionUser = {
         id: foundUser.id,
         name: foundUser.name,
         email: foundUser.email,
         role: foundUser.role,
+        status: 'APPROVED',
       };
 
       const token = `mock-access-token-${foundUser.role.toLowerCase()}-${Date.now()}`;
@@ -111,6 +164,13 @@ export function AuthProvider({ children }) {
       response?.data?.accessToken || response?.data?.access_token;
     const loggedInUser = response?.data?.user;
 
+    if (
+      loggedInUser?.status === 'PENDING' ||
+      loggedInUser?.status === 'REJECTED'
+    ) {
+      return loggedInUser;
+    }
+
     setAccessToken(token);
     setClientToken(token);
     setUser(loggedInUser);
@@ -119,9 +179,17 @@ export function AuthProvider({ children }) {
     return loggedInUser;
   };
 
-  // Hàm đăng ký tài khoản mới từ Register.jsx -> đẩy vào usersList với role: 'STAFF'
+  // Hàm đăng ký tài khoản mới từ Register.jsx -> khởi tạo với role: 'STAFF' và status: 'PENDING'
   const register = (userData) => {
     const normalizedEmail = (userData.email || '').trim().toLowerCase();
+    const nowFormatted = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(new Date());
 
     const newUser = {
       id: `usr_staff_${Date.now()}`,
@@ -129,6 +197,8 @@ export function AuthProvider({ children }) {
       email: normalizedEmail,
       password: userData.password,
       role: 'STAFF',
+      status: userData.status || 'PENDING',
+      submittedAt: `${nowFormatted} (Asia/Ha_Noi)`,
     };
 
     setUsersList((prev) => {

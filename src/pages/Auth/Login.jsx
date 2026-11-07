@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import {
+  validateEmail,
+  validateLoginForm,
+  validateLoginPassword,
+} from '../../utils/validation';
 import styles from './Login.module.css';
 
 export default function Login() {
@@ -11,11 +16,19 @@ export default function Login() {
     email: '',
     password: '',
   });
+  const [fieldErrors, setFieldErrors] = useState({
+    email: '',
+    password: '',
+  });
+  const [touched, setTouched] = useState({
+    email: false,
+    password: false,
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Nếu người dùng đã đăng nhập sẵn thì tự động điều hướng theo vai trò
+  // Nếu người dùng đã đăng nhập sẵn (APPROVED) thì tự động điều hướng theo vai trò
   if (user) {
     return (
       <Navigate
@@ -25,28 +38,86 @@ export default function Login() {
     );
   }
 
-  // Khi người dùng bắt đầu gõ ký tự vào ô input -> Tự động ẩn hộp thông báo lỗi đỏ
+  // Kiểm tra lỗi từng trường
+  const validateSingleField = (name, value) => {
+    if (name === 'email') return validateEmail(value);
+    if (name === 'password') return validateLoginPassword(value);
+    return '';
+  };
+
+  // Khi người dùng gõ ký tự -> ẩn thông báo lỗi chung và cập nhật validate nếu trường đã chạm (touched)
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (hasError) {
       setHasError(false);
     }
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
+
+    if (touched[name]) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        [name]: validateSingleField(name, value),
+      }));
+    }
   };
 
-  // Xử lý submit form đăng nhập (giả lập delay 600ms hiển thị Spinner trong nút)
+  // Khi rời chuột khỏi ô input (onBlur) -> Hiển thị lỗi ngay dưới ô input
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    setTouched((prev) => ({
+      ...prev,
+      [name]: true,
+    }));
+    setFieldErrors((prev) => ({
+      ...prev,
+      [name]: validateSingleField(name, value),
+    }));
+  };
+
+  // Xử lý submit form đăng nhập
   const handleSubmit = async (e) => {
     e.preventDefault();
     setHasError(false);
-    setIsSubmitting(true);
 
+    // 1. Validate toàn bộ form trước khi gửi
+    const { isValid, errors } = validateLoginForm(formData);
+    setTouched({ email: true, password: true });
+    setFieldErrors(errors);
+
+    if (!isValid) {
+      return;
+    }
+
+    setIsSubmitting(true);
     await new Promise((resolve) => setTimeout(resolve, 600));
 
     try {
       const loggedInUser = await login(formData.email, formData.password);
+
+      // 2. Nếu tài khoản có trạng thái PENDING hoặc REJECTED -> Chuyển sang /account-status
+      if (
+        loggedInUser?.status === 'PENDING' ||
+        loggedInUser?.status === 'REJECTED'
+      ) {
+        navigate('/account-status', {
+          replace: true,
+          state: {
+            status: loggedInUser.status,
+            fullName: loggedInUser.name,
+            email: loggedInUser.email,
+            submittedAt: loggedInUser.submittedAt,
+            rejectReason: loggedInUser.rejectReason,
+            rejectSubState: loggedInUser.rejectSubState,
+          },
+        });
+        return;
+      }
+
+      // 3. Tài khoản APPROVED -> Điều hướng vào không gian làm việc theo vai trò
       navigate(loggedInUser.role === 'ADMIN' ? '/dashboard' : '/pos', {
         replace: true,
       });
@@ -95,7 +166,6 @@ export default function Login() {
           </label>
           <div className={styles.inputWrapper}>
             <span className={styles.leftIcon} aria-hidden="true">
-              {/* Icon phong bì thư */}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="2" y="4" width="20" height="16" rx="2" />
                 <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
@@ -107,25 +177,39 @@ export default function Login() {
               name="email"
               value={formData.email}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="an.nguyen@retailops.vn"
-              className={styles.input}
+              className={`${styles.input} ${
+                fieldErrors.email ? styles.inputError : ''
+              }`}
               autoComplete="email"
+              aria-invalid={Boolean(fieldErrors.email)}
               required
             />
           </div>
-          <span className={styles.helperText}>
-            Sử dụng email nhân viên đã được kích hoạt trong hệ thống.
-          </span>
+          {fieldErrors.email ? (
+            <span className={styles.fieldError} role="alert">
+              {fieldErrors.email}
+            </span>
+          ) : (
+            <span className={styles.helperText}>
+              Sử dụng email nhân viên đã được kích hoạt trong hệ thống.
+            </span>
+          )}
         </div>
 
         {/* Trường 2: MẬT KHẨU * */}
         <div className={styles.fieldGroup}>
-          <label htmlFor="password" className={styles.label}>
-            MẬT KHẨU <span className={styles.required}>*</span>
-          </label>
+          <div className={styles.labelRow}>
+            <label htmlFor="password" className={styles.label}>
+              MẬT KHẨU <span className={styles.required}>*</span>
+            </label>
+            <Link to="/forgot-password" className={styles.forgotLink}>
+              Quên mật khẩu?
+            </Link>
+          </div>
           <div className={styles.inputWrapper}>
             <span className={styles.leftIcon} aria-hidden="true">
-              {/* Icon ổ khóa */}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -137,9 +221,13 @@ export default function Login() {
               name="password"
               value={formData.password}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="••••••••••••"
-              className={`${styles.input} ${styles.inputWithRightIcon}`}
+              className={`${styles.input} ${styles.inputWithRightIcon} ${
+                fieldErrors.password ? styles.inputError : ''
+              }`}
               autoComplete="current-password"
+              aria-invalid={Boolean(fieldErrors.password)}
               required
             />
             <button
@@ -162,6 +250,11 @@ export default function Login() {
               )}
             </button>
           </div>
+          {fieldErrors.password && (
+            <span className={styles.fieldError} role="alert">
+              {fieldErrors.password}
+            </span>
+          )}
         </div>
 
         {/* 4. Nút bấm Đăng nhập & Trạng thái Loading */}
@@ -199,4 +292,3 @@ export default function Login() {
     </div>
   );
 }
-

@@ -135,6 +135,11 @@
   color: var(--color-neutral, #242A30);
 }
 
+.costPriceText {
+  font-weight: 500;
+  color: var(--color-secondary, #586574);
+}
+
 .stockBadge {
   display: inline-block;
   min-width: 36px;
